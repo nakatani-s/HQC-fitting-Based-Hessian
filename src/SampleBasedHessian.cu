@@ -246,10 +246,10 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     make_symmetric_Matrix<<<sz_HESS, sz_HESS>>>(d_transH, d_Hess);
     CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Symmetric Hessian Matrix !");
     // ヘシアンの計算まで終了 d_transH にヘシアンの情報を格納
-    float *printHost;
-    printHost = (float*)malloc(szMatG);
-    CHECK_CUDA(cudaMemcpy(printHost, d_G, szMatG, cudaMemcpyDeviceToHost),"Failed to copy inverHess device ==> host");
-    printMatrix(sz_QC, sz_QC, printHost, sz_QC, "invHess");
+    //float *printHost;
+    //printHost = (float*)malloc(szMatG);
+    //CHECK_CUDA(cudaMemcpy(printHost, d_G, szMatG, cudaMemcpyDeviceToHost),"Failed to copy inverHess device ==> host");
+    //printMatrix(sz_QC, sz_QC, printHost, sz_QC, "invHess");
     CHECK_CUDA(cudaFree(d_G), "Failed to free d_InverseG");
     //  -2*Hessian * b^T の b^Tベクトルを作成 (Hvector　←　b^T) 
     make_Vector_B<<<HORIZON, 1>>>(d_vectorB, d_ansRvect, sz_HessianElements);
@@ -266,8 +266,10 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     CHECK_CUBLAS(cublasSgemv(handle_cublas, CUBLAS_OP_N, sz_HESS, sz_HESS, &alpha, d_Hess, sz_HESS, d_vectorB, 1, &beta, d_Input, 1), "Failed to calculate InputSeq by Proposed Method !!!");
 
     CHECK_CUDA(cudaFree(d_Hess),"Failed to free d_Hess");
+    CHECK_CUDA(cudaFree(d_ansRvect),"Failed to free d_Hess");
     CHECK_CUDA(cudaFree(d_transH), "Failed to free d_transH");
     CHECK_CUDA(cudaFree(d_vectorB),"Failed to free d_vectorB");
+    CHECK_CUDA(cudaFree(deviceHP),"Failed to free deviceHP");
     // CHECK_CUDA(cudaFree(work_sizeForHess),"Failed to free work_sizeForHess");
     CHECK_CUDA(cudaFree(devInfo), "Failed to free devInfo at GetInputByLSMfittingMethod");
 

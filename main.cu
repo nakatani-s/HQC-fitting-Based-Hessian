@@ -260,7 +260,7 @@ int main(int argc, char **argv)
             hostState[0] = hostConstraint[3];
         }
 #endif
-        fprintf(fp, "%f %f %f %f %f %f %f %f %f %d %f %f\n", interval * t, now_input, inferior_input, hostState[0], hostState[1], hostState[2], hostState[3], costMCMPC, costSBH, counter, process_gpu_time /1000, procedure_time);
+        fprintf(fp, "%f %f %f %f %f %f %f %f %f %d %f %f\n", interval * t, now_input, inferior_input, hostState[0], hostState[1], hostState[2], hostState[3], costMCMPC, costSBH, counter, process_gpu_time /1000, procedure_time / CLOCKS_PER_SEC);
         printf("%f %f %f %f\n", interval * t, now_input, costMCMPC, costSBH);
     }
     fclose(fp);
