@@ -280,6 +280,140 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     CHECK_CUSOLVER(cusolverDnDestroy(cusolverH),"Failed to destory cuSOLVER Handle_t");
 }
 
+void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP, int sz_QC, int sz_HESS, int sz_LSM)
+{
+    cusolverDnHandle_t cusolverH = NULL;
+    cublasHandle_t handle_cublas = NULL;
+
+    cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
+
+    size_t szMatG = sz_QC * sz_QC * sizeof(float);
+    size_t szMatHESS = sz_HESS * sz_HESS * sizeof(float);
+
+    CHECK_CUSOLVER(cusolverDnCreate(&cusolverH), "Failed to initialize cuSOLVER Handle_t");
+    CHECK_CUBLAS(cublasCreate(&handle_cublas),"Failed to initialize cuBLAS");
+
+    HyperParaboloid *deviceHP;
+    CHECK_CUDA(cudaMalloc(&deviceHP, sz_LSM * sizeof(HyperParaboloid)), "Failed to allocate device HyperParaboloid data!");
+    CHECK_CUDA(cudaMemcpy(deviceHP, hostHP, sz_LSM * sizeof(HyperParaboloid), cudaMemcpyHostToDevice), "Failed to copy device HyperParaboloid data!");
+
+    float *d_G;
+    float *d_InverseG;
+    float *d_Rvect;
+    float *d_ansRvect;
+    float *d_Hess;
+    float *d_transH;
+    float *d_vectorB;
+    float *d_Input;
+
+    int prmszQHP = sz_QC + AdditionalSampleSize;
+    int sz_HessianElements = sz_QC - (sz_HESS + 1);
+
+    CHECK_CUDA(cudaMalloc(&d_G, szMatG), "Failed to allocate d_G !");
+    CHECK_CUDA(cudaMalloc(&d_InverseG, szMatG), "Failed to allocate d_InverseG !");
+    CHECK_CUDA(cudaMalloc(&d_Rvect, sz_QC * sizeof(float)),"Failed to allocate d_Rvect !");
+    CHECK_CUDA(cudaMalloc(&d_ansRvect, sz_QC * sizeof(float)),"Failed to allocate d_Rvect !");
+    CHECK_CUDA(cudaMalloc(&d_vectorB, sz_HESS * sizeof(float)),"Failed to allocate d_vectorB !");
+    CHECK_CUDA(cudaMalloc(&d_Input, sz_HESS * sizeof(float)), "Failed to allocate d_Input !");
+    CHECK_CUDA(cudaMalloc(&d_Hess, szMatHESS), "Failed to allocate d_Hess !!");
+    CHECK_CUDA(cudaMalloc(&d_transH ,szMatHESS), "Failed to allocate d_transH !!")
+
+    dim3 Block(2,2);
+    dim3 Grid((sz_QC + Block.x -1) / Block.x, (sz_QC + Block.y -1)/ Block.y);
+
+    int work_size, work_sizeForHess;
+    float *work_space, *work_spaceForHess;
+    int *devInfo;
+    CHECK_CUDA(cudaMalloc((void**)&devInfo, sizeof(int)), "Failed to allocate devInfo at Func # GetInputByLSMfittingMethod #");
+    
+    float alpha = 1.0f;
+    float beta = 0.0f;
+
+
+    if(sz_QC > LIMIT_OF_THREAD_PER_BLOCK)
+    {
+        getRegularMatrix_overThreadLimit<<<Grid, Block>>>( d_G, deviceHP, prmszQHP, sz_QC);
+        // getRegularMatrix_overThreadLimit<<<Grid, Block>>>( d_G, deviceHP, prmszQHP, sz_QC);
+    }else{
+        getRegularMatrix<<<sz_QC ,sz_QC>>>( d_G, deviceHP, prmszQHP);
+    }
+
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Matrix d_G !");
+    getRegularVector<<<sz_QC, 1>>>( d_Rvect, deviceHP , prmszQHP);
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Vector d_Rvect !");
+
+    CHECK_CUSOLVER(cusolverDnSpotrf_bufferSize(cusolverH, uplo, sz_QC, d_G, sz_QC, &work_size),"Failed to get work_size !");
+    CHECK_CUDA(cudaMalloc((void**)&work_space, sizeof(float)*work_size), "Failed to allocate work_space at cuSOLVER");
+    CHECK_CUSOLVER(cusolverDnSpotrf(cusolverH, uplo, sz_QC, d_G, sz_QC, work_space, work_size, devInfo), "Failed to Function # cusolverDnSpotrf #");
+
+    if(sz_QC > LIMIT_OF_THREAD_PER_BLOCK)
+    {
+        SetUpIdentity_Matrix_overThreadLimit<<<Grid, Block>>>( d_InverseG, sz_QC);
+    }else{
+        SetUpIdentity_Matrix<<<sz_QC ,sz_QC>>>( d_InverseG );
+    }
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Identity Matrix !");
+
+    CHECK_CUSOLVER(cusolverDnSpotrs(cusolverH, uplo, sz_QC, sz_QC, d_G, sz_QC, d_InverseG, sz_QC, devInfo),"Failed to perform Inverse operation at cuSOLVER!");
+
+    CHECK_CUBLAS(cublasSgemv(handle_cublas, CUBLAS_OP_N, sz_QC, sz_QC, &alpha, d_InverseG, sz_QC, d_Rvect, 1, &beta, d_ansRvect, 1), "Failed to product G^-1 * Rv by cuBLAS");
+
+    //CHECK_CUDA(cudaFree(d_G), "Failed to free d_G");
+    CHECK_CUDA(cudaFree(d_InverseG), "Failed to free d_InverseG");
+    CHECK_CUDA(cudaFree(d_Rvect), "Failed to free d_Rvect");
+    CHECK_CUDA(cudaFree(work_space), "Failed to free work_space at GetInputByLSMfittingMethod");
+
+    get_FullHessian_Elements<<<sz_HESS, sz_HESS>>>( d_Hess, d_ansRvect);
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Upper Triangle Hessian Matrix !");
+    transpose_opration_Matrix<<<sz_HESS, sz_HESS>>>(d_transH, d_Hess);
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after Transposed Upper Triangle Hessian Matrix !");
+    make_symmetric_Matrix<<<sz_HESS, sz_HESS>>>(d_transH, d_Hess);
+    CHECK_CUDA(cudaDeviceSynchronize(), "Failed to synchronize after setting Symmetric Hessian Matrix !");
+    // ヘシアンの計算まで終了 d_transH にヘシアンの情報を格納
+    //float *printHost;
+    //printHost = (float*)malloc(szMatG);
+    //CHECK_CUDA(cudaMemcpy(printHost, d_G, szMatG, cudaMemcpyDeviceToHost),"Failed to copy inverHess device ==> host");
+    //printMatrix(sz_QC, sz_QC, printHost, sz_QC, "invHess");
+    CHECK_CUDA(cudaFree(d_G), "Failed to free d_InverseG");
+    //  -2*Hessian * b^T の b^Tベクトルを作成 (Hvector　←　b^T) 
+    make_Vector_B<<<HORIZON, 1>>>(d_vectorB, d_ansRvect, sz_HessianElements);
+
+    multiply_matrix<<<HORIZON, HORIZON>>>(d_Hess, 2.0f, d_transH);
+
+    float *h_Hess, *h_InvHess;
+    h_Hess = (float *)malloc(szMatHESS);
+    h_InvHess = (float *)malloc(szMatHESS);
+    CHECK_CUDA(cudaMemcpy(h_Hess, d_Hess, szMatHESS, cudaMemcpyDeviceToHost), "Failed to copy device Hessian to host Hessian");
+    GetInvMatrix(h_InvHess, h_Hess, sz_HESS);
+    CHECK_CUDA(cudaMemcpy(d_transH, h_InvHess, szMatHESS, cudaMemcpyHostToDevice), "Failed to copy device Hessian to host Hessian");
+    multiply_matrix<<<sz_HESS, sz_HESS>>>(d_Hess, -1.0f, d_transH);
+    free(h_InvHess);
+    free(h_Hess);
+/*    CHECK_CUSOLVER(cusolverDnSpotrf_bufferSize(cusolverH, uplo, sz_HESS, d_Hess, sz_HESS, &work_sizeForHess),"Failed to get work_sizeForHess !");
+    CHECK_CUDA(cudaMalloc((void**)&work_spaceForHess, sizeof(float)*work_sizeForHess), "Failed to allocate work_spaceForHess !!!!");
+    CHECK_CUSOLVER(cusolverDnSpotrf(cusolverH, uplo, sz_HESS, d_Hess, sz_HESS, work_spaceForHess, work_sizeForHess, devInfo), "Failed to Function # cusolverDnSpotrf #");
+
+    SetUpIdentity_Matrix<<<sz_HESS ,sz_HESS>>>( d_transH );
+    CHECK_CUSOLVER(cusolverDnSpotrs(cusolverH, uplo, sz_HESS, sz_HESS, d_Hess, sz_HESS, d_transH, sz_HESS, devInfo),"Failed to perform Inverse operation at # GetInputByLSMfittingMethod() #");
+    multiply_matrix<<<sz_HESS, sz_HESS>>>(d_Hess, -1.0f, d_transH);
+*/
+    CHECK_CUBLAS(cublasSgemv(handle_cublas, CUBLAS_OP_N, sz_HESS, sz_HESS, &alpha, d_Hess, sz_HESS, d_vectorB, 1, &beta, d_Input, 1), "Failed to calculate InputSeq by Proposed Method !!!");
+
+    CHECK_CUDA(cudaFree(d_Hess),"Failed to free d_Hess");
+    CHECK_CUDA(cudaFree(d_ansRvect),"Failed to free d_Hess");
+    CHECK_CUDA(cudaFree(d_transH), "Failed to free d_transH");
+    CHECK_CUDA(cudaFree(d_vectorB),"Failed to free d_vectorB");
+    CHECK_CUDA(cudaFree(deviceHP),"Failed to free deviceHP");
+    // CHECK_CUDA(cudaFree(work_sizeForHess),"Failed to free work_sizeForHess");
+    CHECK_CUDA(cudaFree(devInfo), "Failed to free devInfo at GetInputByLSMfittingMethod");
+
+    CHECK_CUDA(cudaMemcpy(OutPut, d_Input, sz_HESS * sizeof(float), cudaMemcpyDeviceToHost), "Failed to copy Result at # GetInputByLSMfittingMethod() #");
+
+    CHECK_CUDA(cudaFree(d_Input) ,"Failed to free d_Input");
+    CHECK_CUBLAS(cublasDestroy(handle_cublas), "Failed to destory cuBLAS");
+    CHECK_CUSOLVER(cusolverDnDestroy(cusolverH),"Failed to destory cuSOLVER Handle_t");
+}
+
 __global__ void ParallelSimForPseudoGrad(SampleBasedHessian *Hess, MonteCarloMPC *sample, InputSequences *MCresult, Controller *CtrPrm, float delta, int *indices)
 {
     int ix = threadIdx.x + blockIdx.x * blockDim.x;

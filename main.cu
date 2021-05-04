@@ -162,9 +162,13 @@ int main(int argc, char **argv)
 
             // ここから工事開始
 #ifdef PARABOLOID_FITTING_HESSIAN
-            make_tensor_vector<<< qhpBlocks, THREAD_PER_BLOCKS_SORT >>>(deviceParaboloid, device_MCMPC, thrust::raw_pointer_cast( indices_device_vec.data() ));
-            CHECK_CUDA(cudaMemcpy(hostParaboloid, deviceParaboloid, sz_prm_qhp * sizeof(HyperParaboloid), cudaMemcpyDeviceToHost),"Failed to copy Paraboloid Info device ==> host");
-            GetInputByLSMfittingMethod(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
+            if(re == NUM_OF_RECALC - 1){
+                make_tensor_vector<<< qhpBlocks, THREAD_PER_BLOCKS_SORT >>>(deviceParaboloid, device_MCMPC, thrust::raw_pointer_cast( indices_device_vec.data() ));
+                CHECK_CUDA(cudaMemcpy(hostParaboloid, deviceParaboloid, sz_prm_qhp * sizeof(HyperParaboloid), cudaMemcpyDeviceToHost),"Failed to copy Paraboloid Info device ==> host");
+                // GetInputByLSMfittingMethod(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
+                GetInputByLSMfittingMethodFromcuBLAS(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
+            }
+            
             // ここまで工事完了
             // 2021.05.04からの作業概要
             // コスト関数の計算　float *V を引数にしたversionの作成

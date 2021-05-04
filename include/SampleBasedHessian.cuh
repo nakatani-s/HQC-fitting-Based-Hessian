@@ -17,6 +17,7 @@
 void getInvHessian( float *Hess, SampleBasedHessian *hostHess);
 
 void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_QC, int sz_HESS, int sz_LSM);
+void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP, int sz_QC, int sz_HESS, int sz_LSM);
 
 __global__ void getPseduoGradient(SampleBasedHessian  *Hess, float epsilon);
 __global__ void ParallelSimForPseudoGrad(SampleBasedHessian *Hess, MonteCarloMPC *sample, InputSequences *MCresult, Controller *CtrPrm, float delta, int *indices);
