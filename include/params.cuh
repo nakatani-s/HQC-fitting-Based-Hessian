@@ -31,16 +31,17 @@ const int NUM_OF_RECALC = 5;
 const float interval = 0.01;
 const float invBarrier = 10000;
 const float zeta = 0.01f;
-const float iita = 0.05f;
+const float iita = 0.2f;
 
 // Sample Based Hessian Method Parameters
 const int THREAD_PER_BLOCKS_SORT = 25;
 
 // HORIZON 25 ==>  351
+// HORIZON 30 ==>  496
 const int SIZE_OF_PARABOLOIDVESTOR = (HORIZON * HORIZON + 3 * HORIZON + 2) / 2;
 
 //  SIZE_OF_PARABOLOIDVESTOR + AdditionalSampleSize が　THREAD_PER_BLOCKS_SORTの定数倍　かつ　NUM_OF_SAMPLES以下　になるように設定
-const int AdditionalSampleSize = 899; 
+const int AdditionalSampleSize = 404; 
 
 const int LIMIT_OF_THREAD_PER_BLOCK = 1024;
 

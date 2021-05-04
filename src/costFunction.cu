@@ -124,6 +124,7 @@ float calc_Cost_Cart_and_SinglePole_Single( Controller *CtrPrm,float *inputSeq)
         if(inputSeq[t] > CtrPrm->Constraints[1]){
             inputSeq[t] = CtrPrm->Constraints[1];
         }
+        printf("input == %f\n", inputSeq[t]);
         // まずは、オイラー積分（100Hz 40stepで倒立できるか）　→　0.4秒先まで予測
         // 問題が起きたら、0次ホールダーでやってみる、それでもダメならMPCの再設計
         /*dStateValue[0] = stateHere[2];
