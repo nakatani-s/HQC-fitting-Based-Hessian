@@ -321,8 +321,8 @@ void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP
     dim3 Block(2,2);
     dim3 Grid((sz_QC + Block.x -1) / Block.x, (sz_QC + Block.y -1)/ Block.y);
 
-    int work_size, work_sizeForHess;
-    float *work_space, *work_spaceForHess;
+    int work_size/*, work_sizeForHess*/;
+    float *work_space/*, *work_spaceForHess*/;
     int *devInfo;
     CHECK_CUDA(cudaMalloc((void**)&devInfo, sizeof(int)), "Failed to allocate devInfo at Func # GetInputByLSMfittingMethod #");
     

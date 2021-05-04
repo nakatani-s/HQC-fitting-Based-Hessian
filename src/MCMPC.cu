@@ -223,8 +223,13 @@ __global__ void MCMPC_Cart_and_Single_Pole(MonteCarloMPC *PrCtr, curandState *ra
     float HM_COST, HM;
     lambda = DIM_OF_STATE * HORIZON; // Using Constant Lambda
     S = totalCost / lambda;
-    HM = totalCost / (0.75 * HORIZON);
+    HM = totalCost / (0.1 * HORIZON);
     HM_COST = exp(-HM);
+    if(isnan(HM_COST)){
+      HM_COST = 0.0f;
+    }else{
+      HM_COST = HM_COST;
+    }
     KL_COST = exp(-S);
     __syncthreads();
     PrCtr[id].WHM = HM_COST;
