@@ -58,7 +58,7 @@ float calc_Cost_Cart_and_SinglePole( Controller *CtrPrm, InputSequences *Input )
         stateHere[3] = stateHere[3] + (interval * dStateValue[3]);
         stateHere[0] = stateHere[0] + (interval * dStateValue[0]);
         stateHere[1] = stateHere[1] + (interval * dStateValue[1]);*/
-        for(int sec = 0; sec < 1; sec++){
+        for(int sec = 0; sec < 2; sec++){
             dStateValue[0] = stateHere[2];
             dStateValue[1] = stateHere[3];
             dStateValue[2] = Cart_type_Pendulum_ddx(Input[t].InputSeq[0], stateHere[0], stateHere[1], stateHere[2], stateHere[3], param); //ddx
@@ -135,7 +135,7 @@ float calc_Cost_Cart_and_SinglePole_Single( Controller *CtrPrm,float *inputSeq)
         stateHere[3] = stateHere[3] + (interval * dStateValue[3]);
         stateHere[0] = stateHere[0] + (interval * dStateValue[0]);
         stateHere[1] = stateHere[1] + (interval * dStateValue[1]);*/
-        for(int sec = 0; sec < 1; sec++){
+        for(int sec = 0; sec < 2; sec++){
             dStateValue[0] = stateHere[2];
             dStateValue[1] = stateHere[3];
             dStateValue[2] = Cart_type_Pendulum_ddx(inputSeq[t], stateHere[0], stateHere[1], stateHere[2], stateHere[3], param); //ddx

@@ -37,10 +37,10 @@ void init_param(float *a)
 void init_constraints(float *a)
 {
     // FOR CONTROL CART AND POLE
-    a[0] = -2.0f;
-    a[1] = 2.0f;
-    a[2] = -0.5f;
-    a[3] = 0.5f;
+    a[0] = -1.0f;
+    a[1] = 1.0f;
+    a[2] = -0.45; //Original a[2] = -0.45f;
+    a[3] = 0.45;  //Original a[3] = 0.45f;
 }
 
 void init_weightMatrix(float *a)

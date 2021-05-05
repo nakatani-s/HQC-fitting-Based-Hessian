@@ -158,6 +158,8 @@ __global__ void copySingleDateToInputSequences( InputSequences *Output, float *S
 
 void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_QC, int sz_HESS, int sz_LSM)
 {
+   
+
     cusolverDnHandle_t cusolverH = NULL;
     cublasHandle_t handle_cublas = NULL;
 
@@ -204,8 +206,10 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     
     float alpha = 1.0f;
     float beta = 0.0f;
-
-
+    clock_t start_t, stop_t;
+    float get_time;
+    start_t = clock();
+    
     if(sz_QC > LIMIT_OF_THREAD_PER_BLOCK)
     {
         getRegularMatrix_overThreadLimit<<<Grid, Block>>>( d_G, deviceHP, prmszQHP, sz_QC);
@@ -265,6 +269,8 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     multiply_matrix<<<sz_HESS, sz_HESS>>>(d_Hess, -1.0f, d_transH);
     CHECK_CUBLAS(cublasSgemv(handle_cublas, CUBLAS_OP_N, sz_HESS, sz_HESS, &alpha, d_Hess, sz_HESS, d_vectorB, 1, &beta, d_Input, 1), "Failed to calculate InputSeq by Proposed Method !!!");
 
+    
+
     CHECK_CUDA(cudaFree(d_Hess),"Failed to free d_Hess");
     CHECK_CUDA(cudaFree(d_ansRvect),"Failed to free d_Hess");
     CHECK_CUDA(cudaFree(d_transH), "Failed to free d_transH");
@@ -278,6 +284,10 @@ void GetInputByLSMfittingMethod(float *OutPut, HyperParaboloid *hostHP, int sz_Q
     CHECK_CUDA(cudaFree(d_Input) ,"Failed to free d_Input");
     CHECK_CUBLAS(cublasDestroy(handle_cublas), "Failed to destory cuBLAS");
     CHECK_CUSOLVER(cusolverDnDestroy(cusolverH),"Failed to destory cuSOLVER Handle_t");
+
+    stop_t = clock();
+    get_time = stop_t - start_t;
+    printf("time == %f\n", get_time /CLOCKS_PER_SEC);
 }
 
 void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP, int sz_QC, int sz_HESS, int sz_LSM)
@@ -328,7 +338,11 @@ void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP
     
     float alpha = 1.0f;
     float beta = 0.0f;
-
+    cudaEvent_t start_at_Inv, stop_at_Inv;
+    float get_time;
+    cudaEventCreate(&start_at_Inv);
+    cudaEventCreate(&stop_at_Inv);
+    cudaEventRecord(start_at_Inv, 0);
 
     if(sz_QC > LIMIT_OF_THREAD_PER_BLOCK)
     {
@@ -398,7 +412,9 @@ void GetInputByLSMfittingMethodFromcuBLAS(float *OutPut, HyperParaboloid *hostHP
     multiply_matrix<<<sz_HESS, sz_HESS>>>(d_Hess, -1.0f, d_transH);
 */
     CHECK_CUBLAS(cublasSgemv(handle_cublas, CUBLAS_OP_N, sz_HESS, sz_HESS, &alpha, d_Hess, sz_HESS, d_vectorB, 1, &beta, d_Input, 1), "Failed to calculate InputSeq by Proposed Method !!!");
-
+    cudaEventRecord(stop_at_Inv, 0);
+    cudaEventElapsedTime(&get_time, start_at_Inv, stop_at_Inv);
+    printf("time == %f\n", get_time /1000);
     CHECK_CUDA(cudaFree(d_Hess),"Failed to free d_Hess");
     CHECK_CUDA(cudaFree(d_ansRvect),"Failed to free d_Hess");
     CHECK_CUDA(cudaFree(d_transH), "Failed to free d_transH");

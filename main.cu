@@ -34,6 +34,7 @@ int main(int argc, char **argv)
     // cudaMemcpyToSymbol(deviceCtr, &hostCtr, sizeof(Controller));
 
     float hostState[DIM_OF_STATE], hostParam[NUM_OF_PARAMS];
+    float hostDState[DIM_OF_STATE] = {};
     setInitState( hostState );
     setInitHostParam( hostParam );
  
@@ -155,18 +156,24 @@ int main(int argc, char **argv)
             MCMPC_by_weighted_mean(hostInputMCMPC, host_Elite, 0);
 
             // Sampled Hessianの計算
-            CHECK_CUDA(cudaMemcpy( deviceInputMCMPC, hostInputMCMPC, sizeof(InputSequences) * HORIZON, cudaMemcpyHostToDevice),"Failed befor call function -2");
-            MCMPC_Cart_and_Single_Pole<<<numBlocks, THREAD_PER_BLOCKS>>>(device_MCMPC, devStates, deviceCtr, deviceInputMCMPC, iita, thrust::raw_pointer_cast( sort_key_device_vec.data() ));
-            thrust::sequence(indices_device_vec.begin(), indices_device_vec.end());
-            thrust::sort_by_key(sort_key_device_vec.begin(), sort_key_device_vec.end(), indices_device_vec.begin());
 
             // ここから工事開始
 #ifdef PARABOLOID_FITTING_HESSIAN
             if(re == NUM_OF_RECALC - 1){
+                if(costMCMPC < costSBH){
+                    CHECK_CUDA(cudaMemcpy( deviceInputMCMPC, hostInputMCMPC, sizeof(InputSequences) * HORIZON, cudaMemcpyHostToDevice),"Failed befor call function -2");
+                }else{
+                    CHECK_CUDA(cudaMemcpy( hostInputSBH, deviceInput, sizeof(InputSequences) * HORIZON, cudaMemcpyDeviceToHost),"Failed befor call function -2");
+                    CHECK_CUDA(cudaMemcpy( deviceInputMCMPC, hostInputSBH, sizeof(InputSequences) * HORIZON, cudaMemcpyHostToDevice),"Failed befor call function -2");
+                }
+                
+                MCMPC_Cart_and_Single_Pole<<<numBlocks, THREAD_PER_BLOCKS>>>(device_MCMPC, devStates, deviceCtr, deviceInputMCMPC, iita, thrust::raw_pointer_cast( sort_key_device_vec.data() ));
+                thrust::sequence(indices_device_vec.begin(), indices_device_vec.end());
+                thrust::sort_by_key(sort_key_device_vec.begin(), sort_key_device_vec.end(), indices_device_vec.begin());
                 make_tensor_vector<<< qhpBlocks, THREAD_PER_BLOCKS_SORT >>>(deviceParaboloid, device_MCMPC, thrust::raw_pointer_cast( indices_device_vec.data() ));
                 CHECK_CUDA(cudaMemcpy(hostParaboloid, deviceParaboloid, sz_prm_qhp * sizeof(HyperParaboloid), cudaMemcpyDeviceToHost),"Failed to copy Paraboloid Info device ==> host");
-                // GetInputByLSMfittingMethod(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
-                GetInputByLSMfittingMethodFromcuBLAS(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
+                GetInputByLSMfittingMethod(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
+                // GetInputByLSMfittingMethodFromcuBLAS(hostProposedInput, hostParaboloid, SIZE_OF_PARABOLOIDVESTOR, HORIZON, sz_prm_qhp);
             }
             
             // ここまで工事完了
@@ -243,6 +250,14 @@ int main(int argc, char **argv)
             printf("SBH input superior than MCMPC\n");
 #endif
         }
+        /*hostDState[0] = hostState[2];
+        hostDState[1] = hostState[3];
+        hostDState[2] = Cart_type_Pendulum_ddx(now_input, hostState[0], hostState[1], hostState[2], hostState[3], hostParam); //ddx
+        hostDState[3] = Cart_type_Pendulum_ddtheta(now_input, hostState[0], hostState[1], hostState[2], hostState[3], hostParam); //ddtheta
+        hostState[2] = hostState[2] + (interval * hostDState[2]);
+        hostState[3] = hostState[3] + (interval * hostDState[3]);
+        hostState[0] = hostState[0] + (interval * hostDState[0]);
+        hostState[1] = hostState[1] + (interval * hostDState[1]);*/
         Runge_kutta_45_for_Secondary_system(hostState, now_input, hostParam, interval);
 #ifdef COLLISION
         if(hostState[0] <= hostConstraint[2]){

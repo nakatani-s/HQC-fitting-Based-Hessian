@@ -3,6 +3,7 @@
 */ 
 
 #include <stdio.h>
+#include <time.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
